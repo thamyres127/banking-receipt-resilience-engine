@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor de Resiliência Bancária • Comprovantes Pix</title>
+<link rel="stylesheet" href="https://googleapis.com">
+<style>
+  :root {
+    --fundo: #F4F6F9;
+    --card: #FFFFFF;
+    --tinta: #102542;
+    --suave: #5C6B73;
+    --linha: #DCE2E8;
+    --primaria: #EC7000;
+    --azul-banco: #003399;
+    --sucesso-bg: #E6F7ED;
+    --sucesso-txt: #137333;
+    --aviso-bg: #FEF3C7;
+    --aviso-txt: #B45309;
+    --proc-bg: #E0F2FE;
+    --proc-txt: #0369A1;
+    --erro-bg: #FEE2E2;
+    --erro-txt: #B91C1C;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #F4F6F9;
+    color: #102542;
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    background: #FFFFFF;
+    border-bottom: 1px solid #DCE2E8;
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #EC7000;
+    color: #FFFFFF;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+  .brand h1 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0;
+    color: #102542;
+  }
+  .brand small {
+    display: block;
+    font-size: 0.75rem;
+    color: #5C6B73;
+  }
+  .status-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #E6F7ED;
+    color: #137333;
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px 16px 60px;
+  }
+  .resumo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi {
+    background: #FFFFFF;
+    border: 1px solid #DCE2E8;
+    border-radius: 14px;
+    padding: 14px 12px;
+  }
+  .kpi small {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #5C6B73;
+  }
+  .kpi strong {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin-top: 4px;
+    color: #102542;
+  }
+  .kpi.destaque strong { color: #137333; }
+  .kpi.alerta strong { color: #B91C1C; }
+
+  .card {
+    background: #FFFFFF;
+    border: 1px solid #DCE2E8;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #102542;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #5C6B73;
+    margin-bottom: 10px;
+  }
+  input, select {
+    width: 100%;
+    margin-top: 4px;
+    padding: 11px 12px;
+    font: inherit;
+    font-size: 0.9rem;
+    border: 1px solid #DCE2E8;
+    border-radius: 10px;
+    background: #FAFBFD;
+    color: #102542;
+  }
+  .duas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .botoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  button {
+    padding: 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primario { background: #EC7000; color: #FFFFFF; }
+  .btn-secundario { background: #003399; color: #FFFFFF; }
+  .erro-msg { color: #B91C1C; font-size: 0.8rem; font-weight: 600; margin: 4px 0 8px; }
+
+  .tx-item {
+    border: 1px solid #DCE2E8;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #FAFBFD;
+  }
+  .tx-item:last-child { margin-bottom: 0; }
+  .tx-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tx-banco { font-size: 0.72rem; font-weight: 800; color: #003399; text-transform: uppercase; }
+  .tx-favorecido { font-size: 0.95rem; font-weight: 800; margin: 2px 0; }
+  .tx-valor { font-size: 1rem; font-weight: 800; white-space: nowrap; }
+  .tx-meta {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #DCE2E8;
+    font-size: 0.74rem;
+    color: #5C6B73;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
+  .st-PENDING, .st-PROCESSING { background: #E0F2FE; color: #0369A1; }
+  .st-RETRY_SCHEDULED { background: #FEF3C7; color: #B45309; }
+  .st-ISSUED { background: #E6F7ED; color: #137333; }
+  .st-FAILED_DLQ { background: #FEE2E2; color: #B91C1C; }
+
+  .log-box {
+    background: #F8FAFC;
+    border: 1px solid #DCE2E8;
+    border-radius: 10px;
+    padding: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .log-linha { padding: 4px 0; border-bottom: 1px solid #EDF2F7; }
+  .log-linha:last-child { border-bottom: 0; }
+  .log-hora { color: #5C6B73; }
+  .log-tx { font-weight: 700; color: #003399; }
+  .log-ev-err { color: #B91C1C; font-weight: 700; }
+  .log-ev-ok { color: #137333; font-weight: 700; }
+  .btn-limpar {
+    background: transparent;
+    color: #5C6B73;
+    border: 1px solid #DCE2E8;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com" crossorigin></script>
+<script src="https://unpkg.com" crossorigin></script>
+<script src="https://unpkg.com" crossorigin></script>
+
+<script type="text/babel">
+  const { useState, useEffect, useRef } = React;
+
+  const BANCOS = ["Itaú Unibanco", "Nubank", "Santander", "Banco do Brasil", "Bradesco"];
+  const MAX_RETRIES = 3;
+
+  function formatarMoeda(valor) {
+    return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
+  function gerarTxId() {
+    return Math.random().toString(16).substring(2, 10).toUpperCase();
+  }
+
+  function gerarEndToEndId() {
+    const rand = Math.floor(Math.random() * 9000) + 1000;
+    return "E" + Date.now() + "BR" + rand;
+  }
+
+  function gerarHash(texto) {
+    let hash = 0;
+    for (let i = 0; i < texto.length; i++) {
+      hash = (hash << 5) - hash + texto.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(8, "0") + "-e2e-verified";
+  }
+
+  function horaAgora() {
+    const d = new Date();
+    const partes = d.toTimeString().split(" ");
+    return partes[0] + "." + String(d.getMilliseconds()).padStart(3, "0");
+  }
+
+  function esperar(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  function App() {
+    const [transacoes, setTransacoes] = useState([]);
+    const [logs, setLogs] = useState([]);
+    const [payerBank, setPayerBank] = useState(BANCOS[0]);
+    const [payeeName, setPayeeName] = useState("");
+    const [amount, setAmount] = useState("");
+    const [erro, setErro] = useState("");
+    const [processandoLote, setProcessandoLote] = useState(false);
+
+    const logBoxRef = useRef(null);
+
+    useEffect(function() {
+      if (logBoxRef.current) {
+        logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+      }
+    }, [logs]);
+
+    function registrarLog(transactionId, event, details) {
+      setLogs(function(prev) {
+        return prev.concat([{
+          id: Date.now() + Math.random(),
+          timestamp: horaAgora(),
+          transactionId: transactionId,
+          event: event,
+          details: details
+        }]);
+      });
+    }
+
+    function atualizarTransacao(transactionId, campos) {
+      setTransacoes(function(prev) {
+        return prev.map(function(tx) {
+          return tx.transactionId === transactionId ? Object.assign({}, tx, campos) : tx;
+        });
+      });
+    }
+
+    async function executarMotorResiliencia(novaTx) {
+      setTransacoes(function(prev) { return [novaTx].concat(prev); });
+
+      registrarLog(
+        novaTx.transactionId,
+        "TX_RECEIVED",
+        "Pix " + formatarMoeda(novaTx.amount) + " -> " + novaTx.payeeName + " (" + novaTx.payerBank + ")"
+      );
+
+      let tentativa = 0;
+      while (tentativa < MAX_RETRIES) {
+        tentativa++;
+        atualizarTransacao(novaTx.transactionId, {
+          status: "PROCESSING",
+          retryCount: tentativa
+        });
+
+        registrarLog(
+          novaTx.transactionId,
+          "GENERATING_RECEIPT",
+          "Tentativa " + tentativa + " de " + MAX_RETRIES
+        );
+
+        await esperar(550);
+
+        const chance = Math.random() * 100;
+        const falhou = (tentativa === 1 && chance < 65) || (tentativa === 2 && chance < 30);
+
+        if (!falhou) {
+          const hash = gerarHash(novaTx.endToEndId);
+          atualizarTransacao(novaTx.transactionId, {
+            status: "ISSUED",
+            retryCount: tentativa,
+            receiptHash: hash
+          });
+          registrarLog(
+            novaTx.transactionId,
+            "RECEIPT_ISSUED",
+            "Comprovante garantido! E2E: " + novaTx.endToEndId + " | Hash: " + hash.slice(0, 12)
+          );
+          return;
+        }
+
+        const motivo = tentativa === 1
+          ? "Timeout na API de Extrato/Comprovante (HTTP 504)"
+          : "Fila de mensageria congestionada (Lag detectado)";
+
+        atualizarTransacao(novaTx.transactionId, {
+          status: "RETRY_SCHEDULED",
+          retryCount: tentativa
+        });
+        registrarLog(novaTx.transactionId, "INSTABILITY_CAUGHT", motivo);
+
+        if (tentativa < MAX_RETRIES) {
