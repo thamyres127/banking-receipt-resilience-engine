@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>Motor de Resiliência Bancária • Comprovantes Pix</title>
+<style>
+  :root { color-scheme: light only; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #F4F6F9 !important;
+    color: #102542 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    background: #FFFFFF !important;
+    border-bottom: 1px solid #DCE2E8;
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #EC7000;
+    color: #FFFFFF;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+  .brand h1 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0;
+    color: #102542;
+  }
+  .brand small {
+    display: block;
+    font-size: 0.75rem;
+    color: #5C6B73;
+  }
+  .status-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #E6F7ED;
+    color: #137333;
+  }
+  .status-pill.pausado {
+    background: #FEF3C7;
+    color: #B45309;
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px 16px 60px;
+  }
+  .resumo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi {
+    background: #FFFFFF !important;
+    border: 1px solid #DCE2E8;
+    border-radius: 14px;
+    padding: 14px 12px;
+  }
+  .kpi small {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #5C6B73;
+  }
+  .kpi strong {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-top: 4px;
+    color: #102542;
+  }
+  .kpi.destaque strong { color: #137333; }
+  .kpi.alerta strong { color: #B91C1C; }
+
+  .card {
+    background: #FFFFFF !important;
+    border: 1px solid #DCE2E8;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: #102542;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .controles-auto {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  button {
+    padding: 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .btn-primario { background: #EC7000; color: #FFFFFF; }
+  .btn-secundario { background: #003399; color: #FFFFFF; }
+  .btn-limpar {
+    background: transparent;
+    color: #5C6B73;
+    border: 1px solid #DCE2E8;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+  }
+
+  .tx-item {
+    border: 1px solid #DCE2E8;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #FAFBFD;
+  }
+  .tx-item:last-child { margin-bottom: 0; }
+  .tx-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tx-banco { font-size: 0.72rem; font-weight: 800; color: #003399; text-transform: uppercase; }
+  .tx-favorecido { font-size: 0.95rem; font-weight: 800; margin: 2px 0; color: #102542; }
+  .tx-valor { font-size: 1rem; font-weight: 800; white-space: nowrap; color: #102542; }
+  .tx-meta {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #DCE2E8;
+    font-size: 0.74rem;
+    color: #5C6B73;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+  .st-PENDING, .st-PROCESSING { background: #E0F2FE; color: #0369A1; }
+  .st-RETRY_SCHEDULED { background: #FEF3C7; color: #B45309; }
+  .st-ISSUED { background: #E6F7ED; color: #137333; }
+  .st-FAILED_DLQ { background: #FEE2E2; color: #B91C1C; }
+
+  .log-box {
+    background: #F8FAFC;
+    border: 1px solid #DCE2E8;
+    border-radius: 10px;
+    padding: 10px;
+    max-height: 230px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: #102542;
+  }
+  .log-linha { padding: 4px 0; border-bottom: 1px solid #EDF2F7; }
+  .log-linha:last-child { border-bottom: 0; }
+  .log-hora { color: #5C6B73; }
+  .log-tx { font-weight: 700; color: #003399; }
+  .log-ev-err { color: #B91C1C; font-weight: 700; }
+  .log-ev-ok { color: #137333; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="logo-badge">BR</div>
+      <div>
+        <h1>Receipt Resilience Engine</h1>
+        <small>Java + SQL • Simulador Automático Pix</small>
+      </div>
+    </div>
+    <span id="badge-modo" class="status-pill">● Auto-Run Ativo</span>
+  </div>
+</header>
+
+<main>
+  <section class="resumo-grid">
+    <div class="kpi">
+      <small>Transações</small>
+      <strong id="kpi-total">0</strong>
+    </div>
+    <div class="kpi destaque">
+      <small>Emitidos (OK)</small>
+      <strong id="kpi-emitidos">0</strong>
+    </div>
+    <div class="kpi alerta">
+      <small>Fila DLQ</small>
+      <strong id="kpi-dlq">0</strong>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Controle da Simulação Automática</h2>
+    <div class="controles-auto">
+      <button id="btn-toggle-auto" class="btn-primario" type="button">Pausar Automático</button>
+      <button id="btn-nova-tx" class="btn-secundario" type="button">+ Nova TX Agora</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Ciclo de Vida dos Comprovantes</h2>
+    <div id="lista-transacoes"></div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">
+      <span>Audit Log (Tabela SQL)</span>
+      <button id="btn-limpar" class="btn-limpar" type="button">Limpar</button>
+    </h2>
+    <div id="log-box" class="log-box"></div>
+  </section>
+</main>
+
+<script>
+  const MAX_RETRIES = 3;
+  let transacoes = [];
+  let autoAtivo = true;
+  let processando = false;
+
+  const CENARIOS_PIX = [
+    { payerBank: "Itaú Unibanco", payeeName: "Mercado Livre Pagamentos", amount: 249.90 },
+    { payerBank: "Nubank", payeeName: "Energia Enel SP", amount: 184.50 },
+    { payerBank: "Santander", payeeName: "Transferência João Silva", amount: 1200.00 },
+    { payerBank: "Itaú Unibanco", payeeName: "iFood Brasil Serviços", amount: 68.40 },
+    { payerBank: "Banco do Brasil", payeeName: "Sabesp Saneamento", amount: 112.80 },
+    { payerBank: "Bradesco", payeeName: "Amazon Serviços Varejo", amount: 359.00 }
+  ];
+  let indiceCenario = 0;
+
+  function formatarMoeda(valor) {
+    return "R$ " + Number(valor).toFixed(2).replace(".", ",");
+  }
+
+  function gerarTxId() {
+    const chars = "0123456789ABCDEF";
+    let res = "";
+    for (let i = 0; i < 8; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+  }
+
+  function gerarEndToEndId() {
+    const rand = Math.floor(Math.random() * 9000) + 1000;
+    return "E" + Date.now() + "BR" + rand;
+  }
+
+  function gerarHash(texto) {
+    let hash = 0;
+    for (let i = 0; i < texto.length; i++) {
+      hash = (hash << 5) - hash + texto.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(8, "0") + "-e2e-ok";
+  }
+
+  function horaAgora() {
+    const d = new Date();
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    const ms = String(d.getMilliseconds()).padStart(3, "0");
+    return h + ":" + m + ":" + s + "." + ms;
+  }
+
+  function esperar(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  function traduzirStatus(st) {
+    const mapa = {
+      PENDING: "Pendente",
+      PROCESSING: "Processando...",
+      RETRY_SCHEDULED: "Retry Agendado",
+      ISSUED: "Comprovante Emitido",
+      FAILED_DLQ: "Contingência (DLQ)"
+    };
+    return mapa[st] || st;
+  }
+
+  function registrarLog(txId, event, details) {
+    const box = document.getElementById("log-box");
+    if (!box) return;
+    const linha = document.createElement("div");
+    linha.className = "log-linha";
+
+    let classeEv = "";
+    if (event.indexOf("INSTABILITY") !== -1 || event.indexOf("DLQ") !== -1) {
+      classeEv = "log-ev-err";
+    } else if (event.indexOf("ISSUED") !== -1) {
+      classeEv = "log-ev-ok";
+    }
+
+    linha.innerHTML =
+      '<span class="log-hora">[' + horaAgora() + ']</span> ' +
+      '<span class="log-tx">TX:' + txId + '</span> | ' +
+      '<span class="' + classeEv + '">' + event + '</span> | ' +
+      details;
+
+    box.appendChild(linha);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function atualizarTela() {
+    document.getElementById("kpi-total").textContent = String(transacoes.length);
+    document.getElementById("kpi-emitidos").textContent = String(transacoes.filter(function(t) { return t.status === "ISSUED"; }).length);
+    document.getElementById("kpi-dlq").textContent = String(transacoes.filter(function(t) { return t.status === "FAILED_DLQ"; }).length);
+
+    const lista = document.getElementById("lista-transacoes");
+    if (transacoes.length === 0) {
+      lista.innerHTML = '<p style="color:#5C6B73;font-size:0.85rem;text-align:center;margin:0;">Iniciando primeira transação...</p>';
+      return;
+    }
+
+    let html = "";
+    const limite = Math.min(transacoes.length, 6);
+    for (let i = 0; i < limite; i++) {
+      const tx = transacoes[i];
