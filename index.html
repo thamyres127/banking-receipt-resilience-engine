@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>Motor de Resiliência Bancária • Comprovantes Pix</title>
+<style>
+  * { box-sizing: border-box; font-family: -apple-system, sans-serif; }
+  body { margin: 0; background: #F4F6F9; color: #102542; padding-bottom: 40px; }
+  header { background: #FFF; border-bottom: 1px solid #DCE2E8; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 36px; height: 36px; border-radius: 10px; background: #EC7000; color: #FFF; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  h1 { font-size: 0.98rem; margin: 0; }
+  .pill { font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: #E6F7ED; color: #137333; }
+  main { max-width: 580px; margin: 0 auto; padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .kpi, .card { background: #FFF; border: 1px solid #DCE2E8; border-radius: 14px; padding: 14px; }
+  .kpi small { color: #5C6B73; font-size: 0.72rem; font-weight: 600; display: block; }
+  .kpi strong { font-size: 1.4rem; margin-top: 4px; display: block; }
+  .card { margin-bottom: 14px; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { padding: 12px; border: 0; border-radius: 10px; font-weight: 800; color: #FFF; cursor: pointer; }
+  .tx { border: 1px solid #DCE2E8; border-radius: 10px; padding: 10px; margin-top: 10px; background: #FAFBFD; }
+  .top { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.88rem; }
+  .sub { font-size: 0.74rem; color: #5C6B73; margin-top: 5px; display: flex; justify-content: space-between; align-items: center; }
+  .badge { padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; }
+  .ok { background: #E6F7ED; color: #137333; }
+  .warn { background: #FEF3C7; color: #B45309; }
+  .proc { background: #E0F2FE; color: #0369A1; }
+  .err { background: #FEE2E2; color: #B91C1C; }
+  .logs { background: #F8FAFC; border: 1px solid #DCE2E8; border-radius: 8px; padding: 8px; max-height: 180px; overflow-y: auto; font-family: monospace; font-size: 0.72rem; line-height: 1.45; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">BR</div>
+    <div><h1>Receipt Resilience Engine</h1><small style="color:#5C6B73">Java + SQL • Simulador Automático Pix</small></div>
+  </div>
+  <span id="modo" class="pill">● Auto-Run Ativo</span>
+</header>
+<main>
+  <div class="grid">
+    <div class="kpi"><small>Transações</small><strong id="k-tot">0</strong></div>
+    <div class="kpi"><small>Emitidos (OK)</small><strong id="k-ok" style="color:#137333">0</strong></div>
+    <div class="kpi"><small>Fila DLQ</small><strong id="k-dlq" style="color:#B91C1C">0</strong></div>
+  </div>
+  <div class="card btns">
+    <button id="b-auto" style="background:#EC7000" onclick="alternar()">Pausar Automático</button>
+    <button style="background:#003399" onclick="gerarTx()">+ Nova TX Agora</button>
+  </div>
+  <div class="card"><b>Ciclo de Vida dos Comprovantes</b><div id="lista"></div></div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>Audit Log (Tabela SQL)</b>
+      <button onclick="limpar()" style="background:#FFF;color:#5C6B73;border:1px solid #DCE2E8;padding:4px 10px;font-size:0.72rem">Limpar</button>
+    </div>
+    <div id="logs" class="logs"></div>
+  </div>
+</main>
+<script>
+var txs = [], auto = true, rodando = false, idx = 0;
+var lotes = [
+  { b: "Itaú Unibanco", n: "Mercado Livre Pagamentos", v: "R$ 249,90" },
+  { b: "Nubank", n: "Energia Enel SP", v: "R$ 184,50" },
+  { b: "Santander", n: "Transferência João Silva", v: "R$ 1.200,00" },
+  { b: "Itaú Unibanco", n: "iFood Brasil Serviços", v: "R$ 68,40" },
+  { b: "Banco do Brasil", n: "Sabesp Saneamento", v: "R$ 112,80" }
+];
+function addLog(id, ev, msg) {
+  var box = document.getElementById("logs");
+  box.innerHTML += "<div><b style='color:#003399'>[TX:" + id + "]</b> <b>" + ev + "</b> | " + msg + "</div>";
+  box.scrollTop = box.scrollHeight;
+}
+function desenhar() {
+  document.getElementById("k-tot").innerText = txs.length;
+  document.getElementById("k-ok").innerText = txs.filter(function(x) { return x.st === "Comprovante Emitido"; }).length;
+  document.getElementById("k-dlq").innerText = txs.filter(function(x) { return x.st === "Contingência (DLQ)"; }).length;
+  var html = "";
+  for (var i = 0; i < Math.min(txs.length, 5); i++) {
+    var x = txs[i];
+    html += "<div class='tx'><div class='top'><span>" + x.b + " • " + x.n + "</span><span>" + x.v + "</span></div>" +
+            "<div class='sub'><span>TX #" + x.id + " • Tentativa " + x.t + "/3</span><span class='badge " + x.c + "'>" + x.st + "</span></div></div>";
+  }
+  document.getElementById("lista").innerHTML = html;
+}
+function gerarTx() {
+  if (rodando) return;
+  rodando = true;
+  var item = lotes[idx++ % lotes.length];
+  var id = Math.random().toString(16).slice(2, 10).toUpperCase();
+  var tx = { id: id, b: item.b, n: item.n, v: item.v, t: 1, st: "Processando...", c: "proc" };
+  txs.unshift(tx);
+  desenhar();
+  addLog(id, "TX_RECEIVED", tx.v + " -> " + tx.n + " (" + tx.b + ")");
+  setTimeout(function() {
+    if (Math.random() < 0.65) {
+      tx.st = "Retry Agendado"; tx.c = "warn"; desenhar();
+      addLog(id, "INSTABILITY_CAUGHT", "Timeout API Comprovante (HTTP 504). Backoff 700ms...");
+      setTimeout(function() {
+        tx.t = 2; tx.st = "Processando..."; tx.c = "proc"; desenhar();
+        setTimeout(function() {
+          if (Math.random() < 0.25) {
+            tx.t = 3; tx.st = "Contingência (DLQ)"; tx.c = "err"; desenhar();
+            addLog(id, "SENT_TO_DLQ", "Encaminhado para DLQ. Saldo protegido.");
+          } else {
+            tx.st = "Comprovante Emitido"; tx.c = "ok"; desenhar();
+            addLog(id, "RECEIPT_ISSUED", "Comprovante garantido! Hash E2E gerado.");
+          }
+          rodando = false;
+        }, 700);
+      }, 700);
+    } else {
+      tx.st = "Comprovante Emitido"; tx.c = "ok"; desenhar();
+      addLog(id, "RECEIPT_ISSUED", "Comprovante garantido na 1ª tentativa!");
+      rodando = false;
+    }
+  }, 600);
+}
+function alternar() {
+  auto = !auto;
+  document.getElementById("b-auto").innerText = auto ? "Pausar Automático" : "Retomar Automático";
+  document.getElementById("modo").innerText = auto ? "● Auto-Run Ativo" : "❚❚ Pausado";
+  if (auto) gerarTx();
+}
+function limpar() {
+  if (!rodando) { txs = []; document.getElementById("logs").innerHTML = ""; desenhar(); }
+}
+gerarTx();
+setInterval(function() { if (auto && !rodando) gerarTx(); }, 2500);
+</script>
+</body>
+</html>
