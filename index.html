@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Banking Receipt Resilience Engine | Core Banking Monitor</title>
+  <script src="https://tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com"></script>
+  <script crossorigin src="https://unpkg.com"></script>
+  <style>
+    @import url('https://googleapis.com');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      margin: 0;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes pulseBorder {
+      0%, 100% { border-color: rgba(234, 88, 12, 0.45); }
+      50% { border-color: rgba(234, 88, 12, 1); }
+    }
+    .animate-retry {
+      animation: pulseBorder 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    const e = React.createElement;
+    const { useState, useEffect, useRef } = React;
+
+    const SCENARIOS = [
+      { bank: "Itaú Unibanco", payee: "Mercado Livre Pagamentos", amount: 249.90, failTimes: 1, errorMsg: "Timeout na API de Extrato/Comprovante (HTTP 504)" },
+      { bank: "Nubank", payee: "Energia Enel SP", amount: 184.50, failTimes: 0, errorMsg: "" },
+      { bank: "Santander", payee: "Transferência João Silva", amount: 1200.00, failTimes: 2, errorMsg: "Fila de mensageria congestionada (Lag detectado)" },
+      { bank: "Itaú Unibanco", payee: "Pagamento Boleto Vivo", amount: 310.00, failTimes: 3, errorMsg: "Indisponibilidade no provedor de PDF (HTTP 503)" },
+      { bank: "Banco BMG", payee: "Pix Fornecedor Tech", amount: 890.00, failTimes: 1, errorMsg: "Oscilação de rede no barramento BACEN" }
+    ];
+
+    function generateTxId() {
+      return Math.random().toString(16).substring(2, 10).toUpperCase();
+    }
+
+    function generateE2E() {
+      return "E" + Date.now() + "BR" + Math.floor(1000 + Math.random() * 9000);
+    }
+
+    function generateHash(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash).toString(16).padStart(8, '0') + "-a9f";
+    }
+
+    function App() {
+      const [transactions, setTransactions] = useState([]);
+      const [logs, setLogs] = useState([]);
+      const [isAutoRunning, setIsAutoRunning] = useState(true);
+      const [selectedReceipt, setSelectedReceipt] = useState(null);
+      const scenarioIndex = useRef(0);
+      const activeTimers = useRef([]);
+
+      const addLog = (txId, eventType, details, level = "info") => {
+        const now = new Date();
+        const time = now.toLocaleTimeString("pt-BR", { hour12: false }) + "." + String(now.getMilliseconds()).padStart(3, "0");
+        setLogs(prev => [{ id: Date.now() + Math.random(), time, txId, eventType, details, level }, ...prev].slice(0, 35));
+      };
+
+      const runTransactionSimulation = (customScenario = null) => {
+        const template = customScenario || SCENARIOS[scenarioIndex.current % SCENARIOS.length];
+        if (!customScenario) scenarioIndex.current += 1;
+
+        const txId = generateTxId();
+        const endToEndId = generateE2E();
+        const maxRetries = 3;
+
+        const newTx = {
+          transactionId: txId,
+          endToEndId: endToEndId,
+          payerBank: template.bank,
+          payeeName: template.payee,
+          amount: template.amount,
+          status: "PENDING",
+          retryCount: 0,
+          receiptHash: null,
+          createdAt: new Date().toLocaleTimeString("pt-BR")
+        };
+
+        setTransactions(prev => [newTx, ...prev].slice(0, 8));
+        addLog(txId, "TX_RECEIVED", "Pix R$ " + template.amount.toFixed(2) + " -> " + template.payee + " (" + template.bank + ")", "info");
+
+        const executeAttempt = (attempt) => {
+          setTransactions(prev => prev.map(t => t.transactionId === txId ? Object.assign({}, t, { status: "PROCESSING", retryCount: attempt }) : t));
+          addLog(txId, "GENERATING_RECEIPT", "Tentativa " + attempt + " de " + maxRetries + " no motor de emissão...", "info");
+
+          const t1 = setTimeout(() => {
+            if (attempt <= template.failTimes) {
+              setTransactions(prev => prev.map(t => t.transactionId === txId ? Object.assign({}, t, { status: "RETRY_SCHEDULED" }) : t));
+              addLog(txId, "INSTABILITY_CAUGHT", template.errorMsg || "Timeout na API de Comprovante (HTTP 504)", "warn");
+
+              if (attempt < maxRetries) {
+                const backoffMs = Math.pow(2, attempt) * 600;
+                addLog(txId, "BACKOFF_WAIT", "Backoff exponencial: aguardando " + backoffMs + "ms para reprocessar...", "warn");
+                const t2 = setTimeout(() => executeAttempt(attempt + 1), backoffMs);
+                activeTimers.current.push(t2);
+              } else {
+                setTransactions(prev => prev.map(t => t.transactionId === txId ? Object.assign({}, t, { status: "FAILED_DLQ" }) : t));
+                addLog(txId, "SENT_TO_DLQ", "Encaminhado para fila de contingência assíncrona. Saldo protegido.", "error");
+              }
+            } else {
+              const hash = generateHash(endToEndId);
+              setTransactions(prev => prev.map(t => t.transactionId === txId ? Object.assign({}, t, { status: "ISSUED", receiptHash: hash }) : t));
+              addLog(txId, "RECEIPT_ISSUED", "Comprovante garantido! E2E: " + endToEndId + " | Hash: " + hash, "success");
+            }
+          }, 900);
+          activeTimers.current.push(t1);
+        };
+
+        const initialDelay = setTimeout(() => executeAttempt(1), 500);
+        activeTimers.current.push(initialDelay);
+      };
+
+      useEffect(() => {
+        runTransactionSimulation();
+      }, []);
+
+      useEffect(() => {
+        if (!isAutoRunning) return;
+        const interval = setInterval(() => {
+          runTransactionSimulation();
+        }, 5500);
+        return () => clearInterval(interval);
+      }, [isAutoRunning]);
+
+      const totalCount = transactions.length;
+      const issuedCount = transactions.filter(t => t.status === "ISSUED").length;
+      const recoveredCount = transactions.filter(t => t.status === "ISSUED" && t.retryCount > 1).length;
+      const dlqCount = transactions.filter(t => t.status === "FAILED_DLQ").length;
+
+      const getStatusBadge = (status) => {
+        switch (status) {
+          case "ISSUED":
+            return e("span", { className: "px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" }, "ISSUED • Garantido");
+          case "PROCESSING":
+            return e("span", { className: "px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200" }, "PROCESSING • Emitindo");
+          case "RETRY_SCHEDULED":
+            return e("span", { className: "px-2.5 py-1 text-xs font-semibold rounded-full bg-orange-50 text-orange-700 border border-orange-300 animate-pulse" }, "RETRY • Recuperando");
+          case "FAILED_DLQ":
+            return e("span", { className: "px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-50 text-rose-700 border border-rose-200" }, "FAILED_DLQ • Contingência");
+          default:
+            return e("span", { className: "px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600" }, "PENDING");
+        }
+      };
+
+      return e("div", { className: "min-h-screen flex flex-col bg-[#f1f5f9] text-[#0f172a]" },
+        // Header
+        e("header", { className: "bg-gradient-to-r from-[#002b7a] to-[#0044b3] text-white shadow-md px-4 py-4 sticky top-0 z-10" },
+          e("div", { className: "max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3" },
+            e("div", { className: "flex items-center gap-3" },
+              e("div", { className: "w-10 h-10 rounded-xl bg-white text-[#002b7a] flex items-center justify-center font-extrabold text-base shadow-sm shrink-0" }, "BR"),
+              e("div", null,
+                e("h1", { className: "text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2" },
+                  "Banking Receipt Resilience Engine",
+                  e("span", { className: "hidden md:inline-block text-[11px] font-mono-code px-2 py-0.5 rounded bg-white/15 text-blue-50 border border-white/25" }, "JAVA + SQL + REACT")
+                ),
+                e("p", { className: "text-xs text-blue-100" }, "Motor de Contingência, Idempotência e Reemissão Automática de Comprovantes Pix")
+              )
+            ),
+            e("div", { className: "flex items-center gap-2" },
+              e("button", {
+                onClick: () => setIsAutoRunning(!isAutoRunning),
+                className: "px-3 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-2 " + (isAutoRunning ? "bg-white/15 text-white border-white/30" : "bg-blue-950/50 text-blue-200 border-blue-800")
+              },
+                e("span", { className: "w-2 h-2 rounded-full " + (isAutoRunning ? "bg-emerald-400 animate-ping" : "bg-blue-300") }),
+                isAutoRunning ? "Simulação Automática: ON" : "Simulação Pausada"
+              ),
+              e("button", {
+                onClick: () => runTransactionSimulation(),
+                className: "px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-[#002b7a] hover:bg-blue-50 transition shadow-sm"
+              }, "+ Simular Pix")
+            )
+          )
+        ),
+
+        // Main
+        e("main", { className: "max-w-6xl w-full mx-auto px-4 py-6 space-y-6 flex-1" },
+          // KPIs
+          e("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" },
