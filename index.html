@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor de Resiliência Bancária • Comprovantes Pix</title>
+<link rel="stylesheet" href="https://googleapis.com">
+<style>
+  :root {
+    --fundo: #F4F6F9;
+    --card: #FFFFFF;
+    --tinta: #102542;
+    --suave: #5C6B73;
+    --linha: #DCE2E8;
+    --primaria: #EC7000;
+    --primaria-escura: #C85A00;
+    --azul-banco: #003399;
+    --sucesso-bg: #E6F7ED;
+    --sucesso-txt: #137333;
+    --aviso-bg: #FEF3C7;
+    --aviso-txt: #B45309;
+    --proc-bg: #E0F2FE;
+    --proc-txt: #0369A1;
+    --erro-bg: #FEE2E2;
+    --erro-txt: #B91C1C;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--tinta);
+    font-family: 'Manrope', system-ui, sans-serif;
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--linha);
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--primaria);
+    color: #fff;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+  .brand h1 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0;
+    color: var(--tinta);
+  }
+  .brand small {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--suave);
+  }
+  .status-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--sucesso-bg);
+    color: var(--sucesso-txt);
+  }
+  main {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px 16px 60px;
+  }
+  .resumo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--linha);
+    border-radius: 14px;
+    padding: 14px 12px;
+  }
+  .kpi small {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--suave);
+  }
+  .kpi strong {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin-top: 4px;
+    color: var(--tinta);
+  }
+  .kpi.destaque strong { color: var(--sucesso-txt); }
+  .kpi.alerta strong { color: var(--erro-txt); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--linha);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 6px rgba(16, 37, 66, 0.03);
+  }
+  .card-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: var(--tinta);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--suave);
+    margin-bottom: 10px;
+  }
+  input, select {
+    width: 100%;
+    margin-top: 4px;
+    padding: 11px 12px;
+    font: inherit;
+    font-size: 0.9rem;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    background: #FAFBFD;
+    color: var(--tinta);
+  }
+  input:focus, select:focus {
+    outline: 2px solid var(--primaria);
+    background: #fff;
+  }
+  .duas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .botoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  button {
+    padding: 12px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 800;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primario {
+    background: var(--primaria);
+    color: #fff;
+  }
+  .btn-secundario {
+    background: var(--azul-banco);
+    color: #fff;
+  }
+  .erro-msg {
+    color: var(--erro-txt);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 4px 0 8px;
+  }
+
+  .tx-item {
+    border: 1px solid var(--linha);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #FAFBFD;
+  }
+  .tx-item:last-child { margin-bottom: 0; }
+  .tx-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .tx-banco {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--azul-banco);
+    text-transform: uppercase;
+  }
+  .tx-favorecido {
+    font-size: 0.95rem;
+    font-weight: 800;
+    margin: 2px 0;
+  }
+  .tx-valor {
+    font-size: 1rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .tx-meta {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--linha);
+    font-size: 0.74rem;
+    color: var(--suave);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+  .st-PENDING, .st-PROCESSING { background: var(--proc-bg); color: var(--proc-txt); }
+  .st-RETRY_SCHEDULED { background: var(--aviso-bg); color: var(--aviso-txt); }
+  .st-ISSUED { background: var(--sucesso-bg); color: var(--sucesso-txt); }
+  .st-FAILED_DLQ { background: var(--erro-bg); color: var(--erro-txt); }
+
+  .log-box {
+    background: #F8FAFC;
+    border: 1px solid var(--linha);
+    border-radius: 10px;
+    padding: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .log-linha {
+    padding: 4px 0;
+    border-bottom: 1px solid #EDF2F7;
+    color: var(--tinta);
+  }
+  .log-linha:last-child { border-bottom: 0; }
+  .log-hora { color: var(--suave); }
+  .log-tx { font-weight: 700; color: var(--azul-banco); }
+  .log-ev-err { color: var(--erro-txt); font-weight: 700; }
+  .log-ev-ok { color: var(--sucesso-txt); font-weight: 700; }
+  .btn-limpar {
+    background: transparent;
+    color: var(--suave);
+    border: 1px solid var(--linha);
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cloudflare.com"></script>
+<script src="https://cloudflare.com"></script>
+<script src="https://cloudflare.com"></script>
+
+<script type="text/babel">
+  const { useState, useEffect, useRef } = React;
+
+  const BANCOS = ["Itaú Unibanco", "Nubank", "Santander", "Banco do Brasil", "Bradesco"];
+  const MAX_RETRIES = 3;
+
+  const formatarMoeda = (valor) =>
+    Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const gerarTxId = () => Math.random().toString(16).substring(2, 10).toUpperCase();
+
+  const gerarEndToEndId = () => {
+    const rand = Math.floor(Math.random() * 9000) + 1000;
+    return `E${Date.now()}BR${rand}`;
+  };
+
+  const gerarHash = (texto) => {
+    let hash = 0;
+    for (let i = 0; i < texto.length; i++) {
+      hash = (hash << 5) - hash + texto.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(8, "0") + "-e2e-verified";
+  };
+
+  const horaAgora = () => {
+    const d = new Date();
+    return d.toTimeString().split(" ")[0] + "." + String(d.getMilliseconds()).padStart(3, "0");
+  };
+
+  const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function App() {
+    const [transacoes, setTransacoes] = useState([]);
+    const [logs, setLogs] = useState([]);
+    const [payerBank, setPayerBank] = useState(BANCOS[0]);
+    const [payeeName, setPayeeName] = useState("");
+    const [amount, setAmount] = useState("");
+    const [erro, setErro] = useState("");
+    const [processandoLote, setProcessandoLote] = useState(false);
+
+    const logBoxRef = useRef(null);
+
+    useEffect(() => {
+      if (logBoxRef.current) {
+        logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+      }
+    }, [logs]);
+
+    const registrarLog = (transactionId, event, details) => {
+      setLogs((prev) => [
+        ...prev,
+        { id: Date.now() + Math.random(), timestamp: horaAgora(), transactionId, event, details }
+      ]);
+    };
+
+    const atualizarTransacao = (transactionId, campos) => {
+      setTransacoes((prev) =>
+        prev.map((tx) => (tx.transactionId === transactionId ? { ...tx, ...campos } : tx))
+      );
+    };
+
+    // Espelha o método externalReceiptServiceCall + processWithResilience do Java
+    const executarMotorResiliencia = async (novaTx) => {
+      setTransacoes((prev) => [novaTx, ...prev]);
+
+      registrarLog(
+        novaTx.transactionId,
+        "TX_RECEIVED",
+        `Pix ${formatarMoeda(novaTx.amount)} -> ${novaTx.payeeName} (${novaTx.payerBank})`
+      );
+
+      let tentativa = 0;
+      while (tentativa < MAX_RETRIES) {
+        tentativa++;
+        atualizarTransacao(novaTx.transactionId, {
+          status: "PROCESSING",
+          retryCount: tentativa
+        });
+
+        registrarLog(
+          novaTx.transactionId,
+          "GENERATING_RECEIPT",
+          `Tentativa ${tentativa} de ${MAX_RETRIES}`
+        );
+
+        await esperar(550);
+
+        // Simula instabilidade igual ao código Java (65% na 1ª, 30% na 2ª)
+        const chance = Math.random() * 100;
+        const falhou = (tentativa === 1 && chance < 65) || (tentativa === 2 && chance < 30);
+
+        if (!falhou) {
+          const hash = gerarHash(novaTx.endToEndId);
+          atualizarTransacao(novaTx.transactionId, {
+            status: "ISSUED",
+            retryCount: tentativa,
+            receiptHash: hash
+          });
+          registrarLog(
+            novaTx.transactionId,
+            "RECEIPT_ISSUED",
